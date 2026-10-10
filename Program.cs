@@ -3,6 +3,7 @@ using UrlShortener.Contracts;
 using UrlShortener.Data;
 using UrlShortener.Services;
 using UrlShortener.Domain;
+using UrlShortener.Analytics;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -11,6 +12,8 @@ builder.Services.AddDbContext<AppDb>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("Default") ?? "Data Source=urls.db"));
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<UrlService>();
+builder.Services.AddSingleton<ClickQueue>();
+builder.Services.AddHostedService<ClickRecorder>();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
@@ -74,6 +77,7 @@ app.MapGet("/{code}", async (
     string code,
     AppDb db,
     TimeProvider clock,
+    ClickQueue clickQueue,
     HttpContext http,
     CancellationToken ct) =>
 {
@@ -87,15 +91,12 @@ app.MapGet("/{code}", async (
     if (url.ExpiresAt is not null && url.ExpiresAt <= now)
         return Results.StatusCode(StatusCodes.Status410Gone);
 
-    // NAIVE: the visitor waits for this database write.
-    db.Clicks.Add(new ClickEvent
-    {
-        Code = code,
-        At = now,
-        Referrer = Truncate(http.Request.Headers.Referer.ToString(), 2048),
-        UserAgent = Truncate(http.Request.Headers.UserAgent.ToString(), 512)
-    });
-    await db.SaveChangesAsync(ct);
+    // Fire-and-forget: an instant hand-off to the background worker.
+    clickQueue.TryEnqueue(new ClickItem(
+        code,
+        now,
+        Truncate(http.Request.Headers.Referer.ToString(), 2048),
+        Truncate(http.Request.Headers.UserAgent.ToString(), 512)));
 
     return Results.Redirect(url.OriginalUrl, permanent: false);
 });
