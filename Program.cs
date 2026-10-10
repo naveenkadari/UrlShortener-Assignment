@@ -4,6 +4,7 @@ using UrlShortener.Data;
 using UrlShortener.Services;
 using UrlShortener.Domain;
 using UrlShortener.Analytics;
+using Microsoft.Extensions.Caching.Memory;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -14,6 +15,7 @@ builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<UrlService>();
 builder.Services.AddSingleton<ClickQueue>();
 builder.Services.AddHostedService<ClickRecorder>();
+builder.Services.AddMemoryCache(options => options.SizeLimit = 10_000);
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
@@ -76,12 +78,27 @@ app.MapPost("/api/v1/urls", async (
 app.MapGet("/{code}", async (
     string code,
     AppDb db,
+    IMemoryCache cache,
     TimeProvider clock,
     ClickQueue clickQueue,
     HttpContext http,
     CancellationToken ct) =>
 {
-    var url = await db.Urls.AsNoTracking().FirstOrDefaultAsync(u => u.Code == code, ct);
+    var cacheKey = $"url:{code}";
+
+    if (!cache.TryGetValue(cacheKey, out ShortUrl? url))
+    {
+        url = await db.Urls.AsNoTracking().FirstOrDefaultAsync(u => u.Code == code, ct);
+
+        if (url is not null)   // never cache "not found" results
+        {
+            cache.Set(cacheKey, url, new MemoryCacheEntryOptions
+            {
+                Size = 1,
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5)
+            });
+        }
+    }
 
     if (url is null || url.IsDeleted)
         return Results.NotFound();
@@ -91,7 +108,6 @@ app.MapGet("/{code}", async (
     if (url.ExpiresAt is not null && url.ExpiresAt <= now)
         return Results.StatusCode(StatusCodes.Status410Gone);
 
-    // Fire-and-forget: an instant hand-off to the background worker.
     clickQueue.TryEnqueue(new ClickItem(
         code,
         now,
@@ -133,6 +149,35 @@ app.MapGet("/api/v1/urls/{code}/stats", async (string code, AppDb db, Cancellati
         clicksByDay = byDay,
         topReferrers = referrers
     });
+});
+
+//app.MapDelete("/api/v1/urls/{code}", async (string code, AppDb db, CancellationToken ct) =>
+//{
+//    var url = await db.Urls.FirstOrDefaultAsync(u => u.Code == code && !u.IsDeleted, ct);
+
+//    if (url is null)
+//        return Results.NotFound();
+
+//    url.IsDeleted = true;          // soft delete: the row and its click history stay
+//    await db.SaveChangesAsync(ct);
+
+//    return Results.NoContent();    // 204
+//});
+
+
+//Update the delete endpoint to clear the cache. Change its signature and add one line:
+app.MapDelete("/api/v1/urls/{code}", async (string code, AppDb db, IMemoryCache cache, CancellationToken ct) =>
+{
+    var url = await db.Urls.FirstOrDefaultAsync(u => u.Code == code && !u.IsDeleted, ct);
+
+    if (url is null)
+        return Results.NotFound();
+
+    url.IsDeleted = true;
+    await db.SaveChangesAsync(ct);
+    cache.Remove($"url:{code}");   // otherwise the cache keeps serving the deleted link
+
+    return Results.NoContent();
 });
 
 app.Run();
