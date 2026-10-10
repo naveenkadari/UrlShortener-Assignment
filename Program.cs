@@ -5,6 +5,7 @@ using UrlShortener.Services;
 using UrlShortener.Domain;
 using UrlShortener.Analytics;
 using Microsoft.Extensions.Caching.Memory;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -16,6 +17,40 @@ builder.Services.AddScoped<UrlService>();
 builder.Services.AddSingleton<ClickQueue>();
 builder.Services.AddHostedService<ClickRecorder>();
 builder.Services.AddMemoryCache(options => options.SizeLimit = 10_000);
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    options.OnRejected = async (context, token) =>
+    {
+        if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
+            context.HttpContext.Response.Headers.RetryAfter =
+                ((int)Math.Ceiling(retryAfter.TotalSeconds)).ToString();
+
+        await context.HttpContext.Response.WriteAsJsonAsync(
+            new { error = "too many requests, please retry later" }, token);
+    };
+
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(http =>
+    {
+        // Health checks must never be throttled, or monitoring would report false outages.
+        if (http.Request.Path.StartsWithSegments("/health"))
+            return RateLimitPartition.GetNoLimiter("health");
+
+        // Read lazily so tests can override the values.
+        var permitLimit = builder.Configuration.GetValue("RateLimit:PermitLimit", 100);
+        var windowSeconds = builder.Configuration.GetValue("RateLimit:WindowSeconds", 60);
+
+        return RateLimitPartition.GetFixedWindowLimiter(
+            http.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = permitLimit,
+                Window = TimeSpan.FromSeconds(windowSeconds),
+                QueueLimit = 0          // reject immediately, never queue
+            });
+    });
+});
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
@@ -40,6 +75,7 @@ app.UseExceptionHandler(errorApp =>
         }
     });
 });
+app.UseRateLimiter();
 
 // Create the database/tables on startup (prototype only; production would use migrations)
 using (var scope = app.Services.CreateScope())
