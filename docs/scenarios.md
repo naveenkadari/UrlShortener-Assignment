@@ -98,7 +98,7 @@ on shutdown, stats are eventually consistent.
 future link, so it ships **off by default** (`Links:DefaultExpiryDays` unset). Enabling it
 requires explicit approval.
 
-> Approved to remain disabled by default: ______________________  Date: ____________
+> Approved to remain disabled by default: Naveen Kadari  Date: 11-10-20226
 
 **Decomposition**
 
