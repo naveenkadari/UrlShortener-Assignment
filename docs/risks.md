@@ -16,11 +16,12 @@
 | Deleted alias cannot be reused | Documented | Needs a retention policy |
 | Default expiry surprises users | Off by default, applies only to new links, invalid values ignored, needs sign-off | None |
 | Readiness probe depth | Runs a real query | Does not check disk space or the background worker |
-| Error responses | Global handler returns generic 400/500 JSON, no stack traces | Rate-limit bodies are generic by design |
+| Error responses | Global handler returns generic 500 JSON for unhandled exceptions, no stack traces. In Development, malformed JSON also reaches the handler and returns a 400 JSON body | In Production the framework answers malformed JSON itself with a bare 400 and an empty body (observed in the Docker run). Nothing leaks, but the body is not JSON. Rate-limit bodies are generic by design |
 | Vulnerable dependencies | Scanned transitively, three packages pinned (see quality gates) | `xunit` 2.5.3 is flagged deprecated (test only) |
 | Performance | Cache, async clicks, aggregation in SQL | No load test was run. Performance is reasoned about, not measured |
-| Container build | Multi-stage, non-root user, named volume | Docker build was not verified by the author at the time of writing. Verify with `docker compose up --build` |
+| Container build | Multi-stage, non-root user, named volume | Verified on 2026-10-11 with `docker compose up --build`: `/health`, `/health/ready`, create, redirect (302) and stats worked inside the container. *Persistence across `docker compose down` and `up` is still to be confirmed (update this row after the restart check).* Not verified: other hosts or CPU architectures |
 | AI-specific | All output reviewed, tests and gates, no secrets in prompts | Human review is the control |
+| Short links are public | None. Codes are random but there is no authentication | Anyone with a code can follow it. Do not shorten URLs that contain secrets or one-time tokens |
 | Click-limit expiry | Deliberately not built | Async counting makes a limit of N inexact. Needs its own design |
 
 ## Process finding

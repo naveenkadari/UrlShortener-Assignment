@@ -30,6 +30,7 @@ Decision values: **Accepted**, **Edited**, **Rejected**.
 | 20 | Ambiguity analysis | "List ambiguities in 'make links expire and make the service more reliable'" | Table of questions with options (**verify**) | Edited | I chose the assumptions and cut click-limit expiry, because asynchronous click counting makes a limit of N inexact |
 | 21 | Default expiry | "Configurable default expiry for new links" | Options class and a default applied in `UrlService` (**verify**) | Edited | Applied after validation so a default cannot be rejected, ignored values of zero or less, kept it off by default and for new links only. The constructor change required updating the existing unit tests |
 | 22 | Readiness probe | "Add a readiness endpoint" | Connection-only check (**verify**) | Edited | A real query is a stronger check for SQLite. Added a test that drops the table and expects 503. Used a generated log method because the analyzers reject direct `LogWarning` calls (CA1848) |
+| 23 | Docker smoke test | "Verify the container with curl" | Create call from PowerShell returned an empty response | Investigated, no code change | **Real event.** PowerShell mangled the JSON quotes, so the app correctly returned 400. In Production the framework returns a bare 400 with an empty body for unreadable JSON, so my exception handler's JSON body only applies in Development. Corrected the docs to say so and sent the body from a file instead |
 
 ## Secure AI usage
 

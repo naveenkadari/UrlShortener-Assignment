@@ -6,7 +6,7 @@
 Client
   |
   v
-Rate limiter (per IP, 429 + Retry-After)  -->  Global exception handler (clean 400/500 JSON)
+Rate limiter (per IP, 429 + Retry-After)  -->  Global exception handler (generic 500 JSON; malformed JSON gets a bare 400 in Production)
   |
   v
 Endpoints (Program.cs)  - HTTP only, no business rules
