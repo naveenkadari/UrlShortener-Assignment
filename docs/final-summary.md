@@ -14,7 +14,7 @@ readiness of every change.
 | Artifact | Location |
 |----------|----------|
 | Working prototype | `UrlShortener/` (run with Docker or `dotnet run`) |
-| Tests | `UrlShortener.Tests/` (unit and integration), 56 expected passing |
+| Tests | `UrlShortener.Tests/` (unit and integration), 56 passing |
 | API definition | Swagger at `/swagger`. Export `/swagger/v1/swagger.json` to `docs/openapi.json` |
 | Setup instructions | `README.md` |
 | Architecture | `docs/architecture.md` |
@@ -31,8 +31,7 @@ See `docs/risks.md` and `docs/quality-gates.md`.
 - Format check: clean.
 - Analyzers as errors: 4 findings, 3 fixed, 1 suppressed with a written reason.
 - Dependency scan: 4 transitive findings fixed by pinning patched versions, re-scan clean.
-- Coverage: 92.8% line, 78.7% branch, measured on the 50-test suite *(re-measure with
-  `./quality.ps1` after Scenario 3 and update this line)*.
+- Coverage: 93.2% line, 80.1% branch, measured on the final 56-test suite.
 - Key trade-offs: 302 over 301, async click recording over perfect counts, SQLite over a server
   database, soft delete over hard delete.
 - Failure modes tested: duplicate alias, concurrent creates, malformed JSON, expired link,

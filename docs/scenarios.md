@@ -98,7 +98,7 @@ on shutdown, stats are eventually consistent.
 future link, so it ships **off by default** (`Links:DefaultExpiryDays` unset). Enabling it
 requires explicit approval.
 
-> Approved to remain disabled by default: Naveen Kadari  Date: 11-10-20226
+> Approved to remain disabled by default: Naveen Kadari  Date: 2026-10-11
 
 **Decomposition**
 
@@ -118,7 +118,7 @@ rejected, ignore values of zero or less, keep it off by default, and use a real 
 readiness probe because a plain connection check can pass with broken tables. The analyzers
 required a generated log method for the readiness warning.
 
-**Validation:** all tests green (expected 56: 50 existing, 3 unit, 3 integration). The readiness
+**Validation:** 56 tests passing (50 existing, 3 unit, 3 integration). The readiness
 failure path is proven by dropping the `Urls` table and expecting 503. The expiry path is proven
 by advancing a fake clock 8 days.
 

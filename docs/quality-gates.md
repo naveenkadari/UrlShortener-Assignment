@@ -14,9 +14,9 @@ This file records the **actual results** from the developer machine. Entries mar
 |---|------|---------|--------|--------|
 | 1 | Formatting | `dotnet format UrlShortener.sln --verify-no-changes` | Passed | No changes needed |
 | 2 | Static analysis | `dotnet build UrlShortener.sln -warnaserror` | Passed | 4 findings: 3 fixed, 1 suppressed |
-| 3 | Tests | `dotnet test UrlShortener.sln` | Passed (baseline) | 50 passed, 0 failed, 0 skipped |
+| 3 | Tests | `dotnet test UrlShortener.sln` | Passed | 56 passed, 0 failed, 0 skipped |
 | 4 | Dependency vulnerabilities | `dotnet list UrlShortener.sln package --vulnerable --include-transitive` | Passed | 4 high-severity transitive findings fixed by pinning patched versions. Re-scan: no vulnerable packages |
-| 5 | Code coverage | `dotnet test --collect:"XPlat Code Coverage"` + ReportGenerator | Passed (measured) | 92.8% line, 78.7% branch |
+| 5 | Code coverage | `dotnet test --collect:"XPlat Code Coverage"` + ReportGenerator | Passed (measured) | 93.2% line, 80.1% branch |
 
 ## Gate 1: Formatting
 
@@ -53,9 +53,12 @@ This file records the **actual results** from the developer machine. Entries mar
 ## Gate 3: Tests
 
 - **Command:** `dotnet test UrlShortener.sln`
-- **Result:** 50 passed, 0 failed, 0 skipped.
-- **History:** The baseline was 50 before the analyzer changes. After the analyzer fixes and the
-  dependency upgrades the count is still 50 passed, 0 failed.
+- **Result:** 56 passed, 0 failed, 0 skipped, build succeeded (2026-10-11, after Scenario 3).
+- **History:** The baseline was 50 before the analyzer changes and stayed 50 after the analyzer
+  fixes and dependency upgrades. Scenario 3 added 6 tests (3 unit, 3 integration), giving 56.
+- **Note on test logs:** the run prints error-level log lines (`no such table`, `UNIQUE constraint
+  failed`, a JSON parse error). They are expected: tests deliberately drop tables, create duplicate
+  aliases and send malformed JSON to prove the failure paths.
 
 ## Gate 4: Dependency vulnerabilities
 
@@ -114,26 +117,28 @@ Fixes applied and re-verified on 2026-10-11.
   - `reportgenerator -reports:"UrlShortener.Tests\TestResults\*\coverage.cobertura.xml" -targetdir:coveragereport -reporttypes:"TextSummary;Html"`
   - Run from the repository root. Delete old `TestResults` folders before a run, otherwise
     runs are merged.
-- **Measured on:** 2026-10-11, single clean run (50 tests). Measured before the repository
-  restructure described below. Code is unchanged, so the figures still apply.
+- **Measured on:** 2026-10-11, single clean run of the final code (56 tests, after Scenario 3).
+  An earlier run on the 50-test suite gave 92.8% line and 78.7% branch.
 
 | Metric | Value |
 |--------|-------|
-| Line coverage | 92.8% (400 of 431 coverable lines) |
-| Branch coverage | 78.7% (85 of 108 branches) |
-| Method coverage | 92.4% (49 of 53) |
-| Fully covered methods | 79.2% (42 of 53) |
+| Line coverage | 93.2% (426 of 457 coverable lines) |
+| Branch coverage | 80.1% (93 of 116 branches) |
+| Method coverage | 92.8% (52 of 56) |
+| Fully covered methods | 80.3% (45 of 56) |
 
 - **Per class:**
 
 | Class | Line coverage |
 |-------|---------------|
-| `Program` (endpoints and wiring) | 97.8% |
+| `Program` (endpoints and wiring) | 98% |
 | `UrlValidator` | 100% |
 | `CodeGenerator` | 100% |
 | `AppDb` | 100% |
 | `ClickQueue` | 100% |
-| `UrlService` | 90.6% |
+| `AppLog` (generated log method) | 100% |
+| `UrlOptions` | 100% |
+| `UrlService` | 91.4% |
 | `ClickRecorder` | 60% |
 | `ShortUrl` | 83.3% |
 | `ClickEvent` | 80% |
@@ -146,7 +151,10 @@ Fixes applied and re-verified on 2026-10-11.
   - `ClickRecorder` (60%): the background worker's failure path (logging a failed click) is
     not exercised deterministically. The existing test that breaks the analytics table
     proves the redirect survives, but does not wait for the worker to process the failure.
-  - `UrlService` (90.6%): *(fill in from `coveragereport/index.html`: which lines are red)*
+  - `UrlService` (91.4%): the uncovered lines are most likely the retry and failure branches of
+    `CreateAsync` (a real code collision is hard to trigger with random 7-character codes, and
+    the exhausted-retries exception is not exercised). *Confirm in
+    `coveragereport/index.html` before relying on this statement.*
   - `ShortUrl` and `ClickEvent` are property-only classes. Unhit lines are unused
     property accessors and not a real gap.
 
