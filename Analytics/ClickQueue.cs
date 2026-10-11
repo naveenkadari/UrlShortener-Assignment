@@ -1,9 +1,12 @@
-﻿using System.Threading.Channels;
+﻿using System.Diagnostics.CodeAnalysis;
+using System.Threading.Channels;
 
 namespace UrlShortener.Analytics;
 
 public record ClickItem(string Code, DateTime At, string? Referrer, string? UserAgent);
 
+[SuppressMessage("Naming", "CA1711:Identifiers should not have incorrect suffix",
+    Justification = "Thin wrapper over a bounded Channel; 'Queue' describes its role and is used across docs and tests.")]
 public class ClickQueue
 {
     private readonly Channel<ClickItem> _channel = Channel.CreateBounded<ClickItem>(

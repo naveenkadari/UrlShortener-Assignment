@@ -6,6 +6,7 @@ using UrlShortener.Domain;
 using UrlShortener.Analytics;
 using Microsoft.Extensions.Caching.Memory;
 using System.Threading.RateLimiting;
+using System.Globalization;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -25,7 +26,7 @@ builder.Services.AddRateLimiter(options =>
     {
         if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
             context.HttpContext.Response.Headers.RetryAfter =
-                ((int)Math.Ceiling(retryAfter.TotalSeconds)).ToString();
+    ((int)Math.Ceiling(retryAfter.TotalSeconds)).ToString(CultureInfo.InvariantCulture);
 
         await context.HttpContext.Response.WriteAsJsonAsync(
             new { error = "too many requests, please retry later" }, token);
@@ -151,7 +152,14 @@ app.MapGet("/{code}", async (
         Truncate(http.Request.Headers.UserAgent.ToString(), 512)));
 
     return Results.Redirect(url.OriginalUrl, permanent: false);
-});
+})
+.WithName("Redirect")
+.WithSummary("Redirects a short code to its original URL")
+.WithDescription("Returns 302 with a Location header. Swagger UI cannot follow cross-origin redirects, so test this endpoint in a browser or with curl -i.")
+.Produces(StatusCodes.Status302Found)
+.Produces(StatusCodes.Status404NotFound)
+.Produces(StatusCodes.Status410Gone)
+.Produces(StatusCodes.Status429TooManyRequests);
 
 app.MapGet("/api/v1/urls/{code}/stats", async (string code, AppDb db, CancellationToken ct) =>
 {

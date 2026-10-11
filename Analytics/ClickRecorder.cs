@@ -4,7 +4,7 @@ using UrlShortener.Domain;
 
 namespace UrlShortener.Analytics;
 
-public class ClickRecorder(ClickQueue queue, IServiceScopeFactory scopeFactory, ILogger<ClickRecorder> logger)
+public partial class ClickRecorder(ClickQueue queue, IServiceScopeFactory scopeFactory, ILogger<ClickRecorder> logger)
     : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -28,8 +28,11 @@ public class ClickRecorder(ClickQueue queue, IServiceScopeFactory scopeFactory, 
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 // A failed click is logged and skipped. It never reaches the visitor.
-                logger.LogError(ex, "Failed to record click for {Code}", click.Code);
+                LogClickFailed(logger, ex, click.Code);
             }
         }
     }
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Failed to record click for {Code}")]
+    private static partial void LogClickFailed(ILogger logger, Exception ex, string code);
 }
