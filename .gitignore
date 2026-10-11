@@ -7,6 +7,9 @@
 # .NET build output
 bin/
 obj/
+TestResults/
+coveragereport/
+urls.db*
 
 # User-specific settings
 *.userosscache
