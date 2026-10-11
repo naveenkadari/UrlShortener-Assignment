@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using UrlShortener.Data;
 using UrlShortener.Domain;
 
@@ -8,7 +9,7 @@ public enum CreateStatus { Created, Conflict, Invalid }
 
 public record CreateResult(CreateStatus Status, ShortUrl? Url = null, string? Error = null);
 
-public class UrlService(AppDb db, TimeProvider clock)
+public class UrlService(AppDb db, TimeProvider clock, IOptions<UrlOptions> options)
 {
     private const int MaxAttempts = 5;
 
@@ -25,6 +26,10 @@ public class UrlService(AppDb db, TimeProvider clock)
 
         if (expiresAt is not null && expiresAt <= now)
             return new(CreateStatus.Invalid, Error: "expiresAt must be in the future");
+
+        var defaultDays = options.Value.DefaultExpiryDays;
+        if (expiresAt is null && defaultDays is > 0)
+            expiresAt = now.AddDays(defaultDays.Value);
 
         var attempts = alias is null ? MaxAttempts : 1;
 

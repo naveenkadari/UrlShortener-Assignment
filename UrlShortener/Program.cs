@@ -16,6 +16,7 @@ builder.Services.AddDbContext<AppDb>(options =>
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<UrlService>();
 builder.Services.AddSingleton<ClickQueue>();
+builder.Services.Configure<UrlOptions>(builder.Configuration.GetSection("Links"));
 builder.Services.AddHostedService<ClickRecorder>();
 builder.Services.AddMemoryCache(options => options.SizeLimit = 10_000);
 builder.Services.AddRateLimiter(options =>
@@ -195,21 +196,7 @@ app.MapGet("/api/v1/urls/{code}/stats", async (string code, AppDb db, Cancellati
     });
 });
 
-//app.MapDelete("/api/v1/urls/{code}", async (string code, AppDb db, CancellationToken ct) =>
-//{
-//    var url = await db.Urls.FirstOrDefaultAsync(u => u.Code == code && !u.IsDeleted, ct);
 
-//    if (url is null)
-//        return Results.NotFound();
-
-//    url.IsDeleted = true;          // soft delete: the row and its click history stay
-//    await db.SaveChangesAsync(ct);
-
-//    return Results.NoContent();    // 204
-//});
-
-
-//Update the delete endpoint to clear the cache. Change its signature and add one line:
 app.MapDelete("/api/v1/urls/{code}", async (string code, AppDb db, IMemoryCache cache, CancellationToken ct) =>
 {
     var url = await db.Urls.FirstOrDefaultAsync(u => u.Code == code && !u.IsDeleted, ct);
@@ -222,6 +209,20 @@ app.MapDelete("/api/v1/urls/{code}", async (string code, AppDb db, IMemoryCache 
     cache.Remove($"url:{code}");   // otherwise the cache keeps serving the deleted link
 
     return Results.NoContent();
+});
+
+app.MapGet("/health/ready", async (AppDb db, ILogger<Program> logger, CancellationToken ct) =>
+{
+    try
+    {
+        await db.Urls.AsNoTracking().AnyAsync(ct);   // a real query, not just "can connect"
+        return Results.Ok(new { status = "READY" });
+    }
+    catch (Exception ex) when (ex is not OperationCanceledException)
+    {
+        AppLog.ReadinessFailed(logger, ex);
+        return Results.Json(new { status = "NOT_READY" }, statusCode: StatusCodes.Status503ServiceUnavailable);
+    }
 });
 
 app.Run();

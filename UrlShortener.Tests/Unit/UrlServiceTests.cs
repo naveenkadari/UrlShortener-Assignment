@@ -1,5 +1,6 @@
 ﻿using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
 using UrlShortener.Data;
 using UrlShortener.Services;
@@ -26,7 +27,7 @@ public class UrlServiceTests : IDisposable
         _clock = new FakeTimeProvider();
         _clock.SetUtcNow(new DateTimeOffset(2026, 10, 10, 10, 0, 0, TimeSpan.Zero));
 
-        _service = new UrlService(_db, _clock);
+        _service = new UrlService(_db, _clock, Options.Create(new UrlOptions()));
     }
 
     public void Dispose()
@@ -104,5 +105,34 @@ public class UrlServiceTests : IDisposable
 
         Assert.Equal(CreateStatus.Created, result.Status);
         Assert.Equal(future, result.Url!.ExpiresAt);
+    }
+
+    private UrlService ServiceWithDefault(int? days) =>
+    new(_db, _clock, Options.Create(new UrlOptions { DefaultExpiryDays = days }));
+
+    [Fact]
+    public async Task Create_NoExpiry_UsesConfiguredDefault()
+    {
+        var result = await ServiceWithDefault(30).CreateAsync("https://a.com", null, null, default);
+
+        Assert.Equal(_clock.GetUtcNow().UtcDateTime.AddDays(30), result.Url!.ExpiresAt);
+    }
+
+    [Fact]
+    public async Task Create_ExplicitExpiry_OverridesDefault()
+    {
+        var explicitExpiry = _clock.GetUtcNow().UtcDateTime.AddDays(2);
+
+        var result = await ServiceWithDefault(30).CreateAsync("https://a.com", null, explicitExpiry, default);
+
+        Assert.Equal(explicitExpiry, result.Url!.ExpiresAt);
+    }
+
+    [Fact]
+    public async Task Create_NoDefaultConfigured_LeavesExpiryNull()
+    {
+        var result = await ServiceWithDefault(null).CreateAsync("https://a.com", null, null, default);
+
+        Assert.Null(result.Url!.ExpiresAt);
     }
 }
